@@ -4,15 +4,9 @@
 #include "Core.h"
 #include "../Exports/Exports.h"
 #include "../Detours/detours.h"
+#include "../Includes/nvapi.h"
 #include <vector>
 #include <iostream>
-
-typedef struct {
-	unsigned long version;
-	unsigned long architecture;
-	unsigned long implementation;
-	unsigned long revision;
-} NV_GPU_ARCH_INFO;
 
 typedef HMODULE(WINAPI* LoadLibraryExW_t)(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags);
 typedef FARPROC(WINAPI* GetProcAddress_t)(HMODULE hModule, LPCSTR lpProcName);
@@ -34,8 +28,11 @@ bool HookedGetArchInfo = false;
 
 int DetourNvAPI_GPU_GetArchInfo(int hPhysicalGpu, NV_GPU_ARCH_INFO* pGpuArchInfo) {
 	auto result = OriginalNvAPI_GPU_GetArchInfo(hPhysicalGpu, pGpuArchInfo);
-	pGpuArchInfo->architecture = 0x160;
-	Core::ConsolePrint("[DLSSSpoofer] Spoofed architecture to 0x160");
+	pGpuArchInfo->architecture = NV_GPU_ARCHITECTURE_GB200;
+	pGpuArchInfo->architecture_id = NV_GPU_ARCHITECTURE_GB200;
+	pGpuArchInfo->implementation = 0x4;
+	pGpuArchInfo->implementation_id = NV_GPU_ARCH_IMPLEMENTATION_GB202;
+	Core::ConsolePrint("[DLSSSpoofer] Spoofed architecture to Blackwell");
 	return result;
 }
 
@@ -54,21 +51,10 @@ void* DetourNvAPI_QueryInterface(unsigned long function) {
 	return result;
 }
 
-int NvAPI_Initialize() {
-	Core::ConsolePrint("[DLSSSpoofer] Called NvAPI_Initialize");
-	return 0;
-}
-
 int NvAPI_EnumPhysicalGPUs(int nvGPUHandle[64], unsigned long* pGpuCount) {
 	Core::ConsolePrint("[DLSSSpoofer] Called NvAPI_EnumPhysicalGPUs");
 	*pGpuCount = 1;
-	nvGPUHandle[0] = 0x1337;
-	return 0;
-}
-
-int NvAPI_SYS_GetDriverAndBranchVersion(unsigned long* pDriverVersion, char szBuildBranchString[64]) {
-	Core::ConsolePrint("[DLSSSpoofer] Called NvAPI_SYS_GetDriverAndBranchVersion");
-	*pDriverVersion = 52225;
+	//nvGPUHandle[0] = 0x1337;
 	return 0;
 }
 
@@ -105,12 +91,8 @@ void* Fake_NvAPI_QueryInterface(unsigned long function) {
 	// NvAPI_GPU_QueryNodeInfo
 
 	switch (function) {
-	case 0x150E828UL: // NvAPI_Initialize
-		return (NvAPI_Initialize_t)NvAPI_Initialize;
 	case 0xE5AC921FUL: // NvAPI_EnumPhysicalGPUs
 		return (NvAPI_EnumPhysicalGPUs_t)NvAPI_EnumPhysicalGPUs;
-	case 0x2926AAADUL: // NvAPI_SYS_GetDriverAndBranchVersion
-		return (NvAPI_SYS_GetDriverAndBranchVersion_t)NvAPI_SYS_GetDriverAndBranchVersion;
 	case 0xD8265D24UL: // NvAPI_GPU_GetArchInfo
 		return (NvAPI_GPU_GetArchInfo_t)NvAPI_GPU_GetArchInfo;
 	case 0x48B3EA59UL: // NvAPI_EnumLogicalGPUs
